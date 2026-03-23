@@ -1,19 +1,9 @@
 export default async function handler(req, res) {
-  // 1. Configurar CORS para permitir que tu sitio de InfinityFree consulte esta API
-  res.setHeader('Access-Control-Allow-Credentials', true);
-  res.setHeader('Access-Control-Allow-Origin', '*'); // Permite peticiones de cualquier sitio
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
-  );
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  // Manejar la petición "preflight" de los navegadores
-  if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
-  }
-
+  if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST required' });
   
   const { urlToCheck } = req.body;
@@ -23,7 +13,7 @@ export default async function handler(req, res) {
   const requestBody = {
     client: { clientId: "qr-secure", clientVersion: "1.0.0" },
     threatInfo: {
-      threatTypes: ["MALWARE", "SOCIAL_ENGINEERING", "UNWANTED_SOFTWARE"],
+      threatTypes: ["MALWARE", "SOCIAL_ENGINEERING", "UNWANTED_SOFTWARE", "POTENTIALLY_HARMFUL_APPLICATION"],
       platformTypes: ["ANY_PLATFORM"],
       threatEntryTypes: ["URL"],
       threatEntries: [{ url: urlToCheck }]
@@ -36,12 +26,15 @@ export default async function handler(req, res) {
       body: JSON.stringify(requestBody),
       headers: { 'Content-Type': 'application/json' }
     });
-    
     const data = await response.json();
     
-    // Si hay 'matches', es que Google encontró una amenaza (No es seguro)
-    res.status(200).json({ isSafe: data.matches ? false : true });
+    // Si hay matches, enviamos el primer tipo de amenaza encontrado
+    if (data.matches && data.matches.length > 0) {
+      res.status(200).json({ isSafe: false, type: data.matches[0].threatType });
+    } else {
+      res.status(200).json({ isSafe: true });
+    }
   } catch (error) {
-    res.status(500).json({ isSafe: null, error: error.message });
+    res.status(500).json({ isSafe: null });
   }
 }
